@@ -1,5 +1,5 @@
 ## Introduction
-This repository contains the source code for the SIGMOD'24 paper "Everything You Always Wanted to Know About Storage Compressibility of Pre-Trained ML Models but Were Afraid to Ask". In addition, it contains some codes for frameworks/compressors that are compared with our compression framework Elves.
+This repository contains the source code for the SIGMOD'24 paper **"Everything You Always Wanted to Know About Storage Compressibility of Pre-Trained ML Models but Were Afraid to Ask"**. In addition, it contains some codes for frameworks/compressors that are compared with our compression framework Elves.
 
 ## Installation
 
