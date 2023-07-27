@@ -3,15 +3,6 @@ import torch
 from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, AutoImageProcessor, ResNetForImageClassification
 from Utils.config import *
 
-'''
-model_original_folder           = "model_original/"
-model_compressed_folder         = "model_compressed/"
-model_decompressed_folder       = "model_decompressed/"
-
-dup_layer_folder                = model_compressed_folder+"dup_layer_folder/"
-model_elves_compression         = model_compressed_folder+"elves_compression/"
-'''
-
 def model_downloading(model_name_list):
     for model_name in model_name_list:
         model_downloading_fun(model_name)
