@@ -1,4 +1,8 @@
 ## Installation
+pip3 install -r requirements.txt
+
+## Evaluation Reproducing
+python3 main.py
 
 <!--
 **elf-review/elf-review** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
