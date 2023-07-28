@@ -53,7 +53,7 @@ def exponential_dedup(model_weights_path_list):
             if org_file_size <= total_file_size:
                 print("No Storage Saving from ELF.")
             else:
-                print("ELF:  org file size:", rounding(org_file_size/MB), "MB. ", "cmp file size:", rounding(total_file_size/MB), "MB. ",  "Compression Ratio:", rounding(org_file_size/total_file_size), "\n")
+                print("ELF:  org file size:", rounding(org_file_size/MB), "MB. ", "cmp file size:", rounding(total_file_size/MB), "MB. ",  "Compression Ratio:", rounding(org_file_size/total_file_size))
             continue
 
 
@@ -103,7 +103,7 @@ def exponential_dedup(model_weights_path_list):
         if org_file_size <= total_file_size:
             print("No Storage Saving from ELF.")
         else:
-            print("ELF:  org file size:", rounding(org_file_size/MB), "MB. ", "cmp file size:", rounding(total_file_size/MB), "MB. ",  "Compression Ratio:", rounding(org_file_size/total_file_size), "\n")
+            print("ELF:  org file size:", rounding(org_file_size/MB), "MB. ", "cmp file size:", rounding(total_file_size/MB), "MB. ",  "Compression Ratio:", rounding(org_file_size/total_file_size))
 
         #weight_list_recovery = weights_recovery_from_exponential(weights_dtype_np, over_para_list, over_position_list, within_para_str, within_para_list)
         #weights_error_comparison(model_weights, weight_list_recovery)
