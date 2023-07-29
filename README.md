@@ -8,7 +8,7 @@ pip3 install -r requirements.txt
 python3 main.py
 ```
 
-## Evaluation Comparison Reproducing
+## Evaluation and Comparison Reproducing
 Requires Java 9 or higher
 ```
 sudo apt install maven
