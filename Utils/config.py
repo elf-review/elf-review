@@ -14,6 +14,6 @@ GB = MB*1024
 
 #model_name_list  = ["albert-base-v2"]
 model_name_list  = ["albert-base-v2", "sentence-transformers_all-MiniLM-L6-v2"]
-#model_name_list  = ["albert-base-v2", "microsoft_resnet-50"]
+#model_name_list  = ["albert-base-v2", "sentence-transformers_all-MiniLM-L6-v2", "distilbert-base-cased"]
 #model_name_list  = ["albert-base-v2", "distilbert-base-cased"]
 
