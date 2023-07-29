@@ -1,8 +1,23 @@
 ## Installation
+```
 pip3 install -r requirements.txt
+```
 
 ## ELVES Compression Reproducing 
+```
 python3 main.py
+```
+
+## Evaluation Comparison Reproducing
+Requires Java 9 or higher
+```
+sudo apt install maven
+```
+```
+python3 evaluation.py
+```
+
+
 
 <!--## Evaluation Reproducing
 python3 main.py
