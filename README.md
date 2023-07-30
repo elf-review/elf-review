@@ -1,9 +1,7 @@
-## Dependency Installation
+## ELVES Compression Reproducing
 ```
 pip3 install -r requirements.txt
 ```
-
-## ELVES Compression Reproducing 
 ```
 python3 main.py
 ```
