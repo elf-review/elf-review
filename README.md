@@ -15,6 +15,8 @@ sudo apt install maven
 python3 evaluation.py
 ```
 
+## ELVES Fuzzy Testing
+Fuzzy Testing programs and results in the folder: elf-review/ELF/fuzzy_testing/
 
 
 <!--## Evaluation Reproducing
