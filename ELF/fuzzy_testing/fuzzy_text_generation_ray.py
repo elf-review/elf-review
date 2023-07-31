@@ -820,10 +820,10 @@ def task_text_classification(model_path:dict, samples:Iterable[Any], func_dict_a
 #time.sleep(1200)
 # sets up the credentials to access both compressed and original models on s3
 ml_s3 = boto3.resource(
-    service_name="s3",
-    region_name="us-east-1",
-    aws_access_key_id="AKIAS7X5VN6VXEVJVCN2",
-    aws_secret_access_key="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"
+    service_name="",
+    region_name="",
+    aws_access_key_id="",
+    aws_secret_access_key=""
 )
 
 #logging file
