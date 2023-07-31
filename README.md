@@ -16,7 +16,7 @@ python3 evaluation.py
 ```
 
 ## ELVES Fuzz Testing
-The fuzz testing programs and results for the 300 models are located in the folder: elf-review/ELF/fuzzy_testing/
+The fuzz testing programs and results for the 300 models are located in the folder: elf-review/ELF/fuzz_testing/
 
 <!--## Evaluation Reproducing
 python3 main.py
