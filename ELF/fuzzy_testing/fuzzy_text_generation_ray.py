@@ -832,7 +832,7 @@ logging.basicConfig(filename = 'fuzzy_testing_600.log',
                     format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
 # huggingface auth token
-auth_token = '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'
+auth_token = ''
 login(auth_token)
 
 # sets up the device. it will only use 1 gpu if its available
