@@ -15,9 +15,6 @@ file information
 	-- calculates the trend of all models on Huggingface, their number of downloads, likes and
 		repo change/commit history and when it was first uploaded
 
--- model_list_hf.pkl
-	-- contains the meta data of models on Huggingface calculated through popularity_hf.ipynb
-
 -- script_hf.py
 	-- extract the information from model_list_hf.pkl and put it in a nice dictionary or pandas 		format that is easy to plot
 	-- requires HuggingFace auth_token to run on all the models
