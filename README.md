@@ -15,6 +15,15 @@ sudo apt install maven
 python3 evaluation.py
 ```
 
+## ELF Performance
+
+```
+g++ -O3 elf_pthread.cpp -o elf_pthread -std=c++17 -pthread
+```
+```
+./pthread
+```
+
 ## ELVES Fuzz Testing
 The fuzz testing programs and results for the 300 models are located in the folder: elf-review/ELF/fuzz_testing/
 
