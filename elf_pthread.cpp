@@ -15,21 +15,27 @@
 #include <sstream>
 #include <cassert>
 #include <filesystem>
+#include <cstdlib>
 
 using namespace std;
 
 const float limit_max_abs = 0.9999999;
-const int num_threads = 128;
+const int num_threads = 48;
 
 const int KB = 1024;
 const int MB = KB * 1024;
 const int GB = MB * 1024;
 
 struct ModelInfo {
-    std::string model_name;
     std::string model_path;
-    float model_size;
     int para_num;
+    // 0:float16, 1:float32, 2:float64
+    int precision;
+    // 0:compression, 1:decompression
+    int flg = 0;
+
+    std::string model_name;
+    float model_size;
     vector<double> duration_vec;
     double duration_avg;
     float throughput;
@@ -179,10 +185,10 @@ std::vector<std::bitset<24>> deserializeBitsetArray(const std::string& filename)
 void exp_decoding(std::vector<std::bitset<24>> &list,std::vector<float>& within_para_float){
     for(auto& bits:list){
         std::bitset<32> floatBits;
-        floatBits[31] = 0; // 设置符号位为0
-        // 设置指数部分为01111111
+        floatBits[31] = 0; // sign bit 0
+        // exponent 01111111
         floatBits[30] = 0; floatBits[29] = 1; floatBits[28] = 1; floatBits[27] = 1; floatBits[26] = 1; floatBits[25] = 1; floatBits[24] = 1; floatBits[23] = 1;
-        // 设置小数部分
+        // mantissa
         for(int i = 0; i < 23; ++i) {
             floatBits[i] = bits[i+1];
         }
@@ -417,213 +423,223 @@ int findSecondToLastSlash(const std::string& input) {
     return -1;
 }
 
-vector<ModelInfo> read_model_data() {
-    std::vector<ModelInfo> model_info_list;
-    std::ifstream file("performance_experiment/model_info_list_pre.csv");
-    
-    if (!file.is_open()) {
-        std::cerr << "Failed to open the CSV file." << std::endl;
-        return vector<ModelInfo>();
-    }
-    
-    std::string line;
-    bool header = true;
-    
-    while (std::getline(file, line)) {
-        if (header) {
-            header = false;  // Skip the header row
-            continue;
+bool createDirectory(const std::string& path) {
+    std::filesystem::path dirPath(path);
+
+    if (!std::filesystem::exists(dirPath)) {
+        if (!std::filesystem::create_directory(dirPath)) {
+            std::cerr << "Failed to create directory" << std::endl;
+            return false;
         }
-        
-        std::istringstream linestream(line);
-        std::string field;
-        ModelInfo model_info;
-        
-        std::getline(linestream, field, ',');
-        model_info.model_name = field;
-        
-        std::getline(linestream, field, ',');
-        model_info.model_path = field;
-        
-	std::getline(linestream, field, ',');
-        model_info.model_size = std::stof(field);
-
-        std::getline(linestream, field, ',');
-        model_info.para_num = std::stoi(field);
-
-        model_info_list.push_back(model_info);
+    } else if (!std::filesystem::is_directory(dirPath)) {
+        std::cerr << "Path exists but is not a directory" << std::endl;
+        return false;
     }
-    file.close();
-    return model_info_list;
+
+    return true;
 }
 
-int cmp_speed(ModelInfo& info, int cnt) {
+int elf_cmp(ModelInfo& info) {
     double elapsed_total = 0;
-    for (int i = 0; i < cnt; ++i) {
-        // Clear the page cache, dentries, and inodes (equivalent to "echo 3 > /proc/sys/vm/drop_caches" command)
-        if (system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") != 0) {
-            std::cerr << "Failed to clear caches." << std::endl;
-            return 1;
-        }
-        //std::cout << "Caches cleared successfully." << std::endl;
+    // Clear the page cache, dentries, and inodes (equivalent to "echo 3 > /proc/sys/vm/drop_caches" command)
+    /*
+    if (system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") != 0) {
+        std::cerr << "Failed to clear caches." << std::endl;
+        return 1;
+    }
+    */
+    //std::cout << "Caches cleared successfully." << std::endl;
 
-	// start record time
-        auto start_read = std::chrono::high_resolution_clock::now();
-        int fd = open(info.model_path.c_str(), O_RDWR);
-        if (fd == -1) {
-            perror("open");
-            return 1;
-        }
+    // start record time
+    auto start_read = std::chrono::high_resolution_clock::now();
+    int fd = open(info.model_path.c_str(), O_RDWR);
+    if (fd == -1) {
+        perror("open");
+        return 1;
+    }
 
-        struct stat fileStat;
-        if (fstat(fd, &fileStat) < 0) {
-            perror("fstat");
-            close(fd);
-            return 1;
-        }
-
-        if (fileStat.st_size != static_cast<off_t>(info.para_num * sizeof(float))) {
-            std::cerr << "File size does not match expected size." << std::endl;
-            close(fd);
-            return 1;
-        }
-        
-        void* mapped_data = mmap(NULL, fileStat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        if (mapped_data == MAP_FAILED) {
-            perror("mmap");
-            close(fd);
-            return 1;
-        }
-
-        float* data = static_cast<float*>(mapped_data);
-    
-        size_t secondSlashPos = findSecondToLastSlash(info.model_path);
-        std::string file_folder = info.model_path.substr(0, secondSlashPos+1)+"/elf_cmp/";
-        string over_para_list_file     = file_folder+"over_para_list_file_";
-        string over_position_list_file = file_folder+"over_position_list_file_";
-        string within_para_file        = file_folder+"within_para_file_";
-
-        // Calculate chunk size for each thread
-        size_t chunk_size = info.para_num / num_threads;
-        std::thread threads[num_threads];
-
-        // Launch threads
-        for (int i = 0; i < num_threads; ++i) {
-            size_t start = i * chunk_size;
-            size_t end = (i == num_threads - 1) ? info.para_num : (i + 1) * chunk_size;
-            threads[i] = std::thread(elf_func, data, start, end, over_para_list_file, over_position_list_file, within_para_file, i);
-        }
-
-        // Wait for threads to finish
-        for (int i = 0; i < num_threads; ++i) {
-            threads[i].join();
-        }
-
-        // Unmap and close the file
-        if (munmap(mapped_data, fileStat.st_size) == -1) {
-            perror("munmap");
-        }
+    struct stat fileStat;
+    if (fstat(fd, &fileStat) < 0) {
+        perror("fstat");
         close(fd);
+        return 1;
+    }
 
-        auto end_read = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed_read = end_read - start_read;
-        std::cout<<"Total Time: "<< elapsed_read.count() << " s." <<std::endl;
-        cout << "Throughput: " << info.model_size/MB/elapsed_read.count() << " MB/S." << endl << endl;
+    //std::cout << "fileStat.st_size:" << fileStat.st_size << ", static_cast<off_t>(info.para_num * sizeof(float)): " << static_cast<off_t>(info.para_num * sizeof(float)) << std::endl;
+    if (fileStat.st_size != static_cast<off_t>(info.para_num * sizeof(float))) {
+        std::cerr << "File size does not match expected size." << std::endl;
+        close(fd);
+        return 1;
+    }
+        
+    void* mapped_data = mmap(NULL, fileStat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (mapped_data == MAP_FAILED) {
+        perror("mmap");
+        close(fd);
+        return 1;
+    }
 
-	info.duration_vec.push_back(elapsed_read.count());
-	elapsed_total += elapsed_read.count();
+    float* data = static_cast<float*>(mapped_data);
+
+    size_t secondSlashPos = findSecondToLastSlash(info.model_path);
+    std::string file_folder = info.model_path.substr(0, secondSlashPos+1)+"exponential_dedup/";
+    if (!createDirectory(file_folder))
+        return 1;	
+
+    string over_para_list_file     = file_folder+"over_para_list_file_";
+    string over_position_list_file = file_folder+"over_position_list_file_";
+    string within_para_file        = file_folder+"within_para_file_";
+
+    // Calculate chunk size for each thread
+    size_t chunk_size = info.para_num / num_threads;
+    std::thread threads[num_threads];
+
+    // Launch threads
+    for (int i = 0; i < num_threads; ++i) {
+        size_t start = i * chunk_size;
+        size_t end = (i == num_threads - 1) ? info.para_num : (i + 1) * chunk_size;
+        threads[i] = std::thread(elf_func, data, start, end, over_para_list_file, over_position_list_file, within_para_file, i);
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        threads[i].join();
+    }
+
+    // Unmap and close the file
+    if (munmap(mapped_data, fileStat.st_size) == -1) {
+        perror("munmap");
+    }
+    close(fd);
+
+    auto end_read = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_read = end_read - start_read;
+    //std::cout<<"Total Time: "<< elapsed_read.count() << " s." << " Throughput: " << fileStat.st_size/MB/elapsed_read.count() << " MB/s." << endl << endl;
+    cout << "compression time: " << elapsed_read.count() << " s." << endl;
+    return 0;
+}
+
+int elf_decmp(ModelInfo& info) {
+    double elapsed_total = 0;
+    // Clear the page cache, dentries, and inodes (equivalent to "echo 3 > /proc/sys/vm/drop_caches" command)
+    /*
+    if (system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") != 0) {
+        std::cerr << "Failed to clear caches." << std::endl;
+        return 1;
+    }
+    */
+    //std::cout << "Caches cleared successfully." << std::endl;
+
+    // start record time
+    auto start_read = std::chrono::high_resolution_clock::now();
+    // Create a vector to hold the modified data
+    std::vector<float> decmp_vec(info.para_num);
+    vector<vector<float>> threadData(num_threads);
+    
+    size_t chunk_size = info.para_num / num_threads;
+    for (int i = 0; i < num_threads; ++i) {
+        int start = i * chunk_size;
+        int end = (i == num_threads - 1) ? info.para_num : (i + 1) * chunk_size;
+        threadData[i].reserve(end-start);
+    }
+
+    std::string file_folder = info.model_path;	    
+    //size_t secondSlashPos = findSecondToLastSlash(info.model_path);
+    //std::string file_folder = info.model_path.substr(0, secondSlashPos+1)+"exponential_dedup/";
+
+    string over_para_list_file     = file_folder+"over_para_list_file_";
+    string over_position_list_file = file_folder+"over_position_list_file_";
+    string within_para_file        = file_folder+"within_para_file_";
+        
+    std::thread threads[num_threads];	
+    for (int i = 0; i < num_threads; ++i) {
+        threads[i] = std::thread(elf_func_decmp, over_para_list_file+to_string(i)+".bin", over_position_list_file+to_string(i)+".bin", within_para_file+to_string(i)+".bin", i, std::ref(threadData[i]));
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < num_threads; ++i) {
+        threads[i].join();
+     }
+    int cnt = 0;
+    for (int i = 0; i < threadData.size(); i++){
+        for (int j = 0; j < threadData[i].size(); j++) {
+	    decmp_vec[cnt++] = threadData[i][j];
+	}
+    }
+    //cout << "cnt:" << cnt << ", info.para_num:" << info.para_num << endl;
+    string decmp_file_path = file_folder + "decmp.bin";
+    dumpVectorToBinaryFile(decmp_vec, decmp_file_path);
+    auto end_read = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_read = end_read - start_read;
+    std::cout<<"decompression time: "<< elapsed_read.count() << " s." <<std::endl;
+    return 0;
+}
+
+ModelInfo parse_args(int argc, char *argv[]){
+    ModelInfo model_info;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "-i") {
+            if (i + 1 < argc) {
+                model_info.model_path = argv[++i];
+            } else {
+                std::cerr << "No input path specified after -i" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-c") {
+            model_info.flg = 1;
+        } else if (arg == "-d") {
+            model_info.flg = -1;
+        } else if (arg == "-p") {
+            if (i + 1 < argc) {
+		std::string precision_str = argv[++i];
+		if (precision_str == "f16")
+	            model_info.precision = 0;
+		else if (precision_str == "f32")
+                    model_info.precision = 1;
+		else if (precision_str == "f64")
+                    model_info.precision = 2;
+                else {
+		    std::cerr << "Invalid precision. Choose from f16, f32, f64" << std::endl;
+                    exit(1);
+		}    
+            } else {
+                std::cerr << "No precision specified after -p" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-n") {
+            if (i + 1 < argc) {
+                std::istringstream iss(argv[++i]);
+                if (!(iss >> model_info.para_num)) {
+                    std::cerr << "Invalid size. Size must be an integer." << std::endl;
+                    exit(1);
+                }
+            } else {
+                std::cerr << "No size specified after -size" << std::endl;
+                exit(1);
+            }
+        } else {
+            std::cerr << "Unknown argument: " << arg << std::endl;
+	    exit(1);
+        }
+    }
+
+    return model_info;
+}
+
+int main(int argc, char *argv[]) {
+    ModelInfo model_info = parse_args(argc, argv);
+    if (model_info.flg == 1) {
+        elf_cmp(model_info);
+    } else if (model_info.flg == -1) {
+        elf_decmp(model_info);
+    } else {
+        std::cerr << "please spicify the compression / decompression mode. -c for compression, -d for decompression. " <<  std::endl;
+        exit(1);
     }
     
-    info.duration_avg = elapsed_total / cnt;
-    info.throughput = info.model_size/MB/info.duration_avg;
-    return 0;
-}
-
-int decmp_speed(ModelInfo& info, int cnt) {
-
-    double elapsed_total = 0;
-    for (int i = 0; i < cnt; ++i) {
-        // Clear the page cache, dentries, and inodes (equivalent to "echo 3 > /proc/sys/vm/drop_caches" command)
-        if (system("sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") != 0) {
-            std::cerr << "Failed to clear caches." << std::endl;
-            return 1;
-        }
-        //std::cout << "Caches cleared successfully." << std::endl;
-
-        // start record time
-        auto start_read = std::chrono::high_resolution_clock::now();
-	// Create a vector to hold the modified data
-        std::vector<float> decmp_vec(info.para_num);
-        vector<vector<float>> threadData(num_threads);
-        
-	size_t chunk_size = info.para_num / num_threads;
-        for (int i = 0; i < num_threads; ++i) {
-	    int start = i * chunk_size;
-            int end = (i == num_threads - 1) ? info.para_num : (i + 1) * chunk_size;
-            threadData[i].reserve(end-start);
-	}
-	size_t secondSlashPos = findSecondToLastSlash(info.model_path);
-        std::string file_folder = info.model_path.substr(0, secondSlashPos+1)+"elf_cmp/";
-        string over_para_list_file     = file_folder+"over_para_list_file_";
-        string over_position_list_file = file_folder+"over_position_list_file_";
-        string within_para_file        = file_folder+"within_para_file_";
-        
-        std::thread threads[num_threads];	
-        for (int i = 0; i < num_threads; ++i) {
-            threads[i] = std::thread(elf_func_decmp, over_para_list_file+to_string(i)+".bin", over_position_list_file+to_string(i)+".bin", within_para_file+to_string(i)+".bin", i, std::ref(threadData[i]));
-        }
-
-        // Wait for threads to finish
-        for (int i = 0; i < num_threads; ++i) {
-            threads[i].join();
-        }
-	int cnt = 0;
-	for (int i = 0; i < threadData.size(); i++){
-            for (int j = 0; j < threadData[i].size(); j++) {
-	        decmp_vec[cnt++] = threadData[i][j];
-	    }
-	}
-        //cout << "cnt:" << cnt << ", info.para_num:" << info.para_num << endl;
-        string decmp_file_path = file_folder + "decmp.bin";
-	//cout << "decmp_file_path:" << decmp_file_path << endl;
-        dumpVectorToBinaryFile(decmp_vec, decmp_file_path);
-        auto end_read = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed_read = end_read - start_read;
-        std::cout<<"Total Time: "<< elapsed_read.count() << " s." <<std::endl;
-        cout << "Throughput: " << info.model_size/MB/elapsed_read.count() << " MB/S." << endl << endl;
-
-        info.duration_vec.push_back(elapsed_read.count());
-        elapsed_total += elapsed_read.count();
-	//assert(0==1);
-    }
-    info.duration_avg_decmp = elapsed_total / cnt;
-    info.throughput_decmp = info.model_size/MB/info.duration_avg_decmp;
-    return 0;
-}
-
-
-int main() {
-     
-    std::vector<ModelInfo> model_info_list = read_model_data();
-    double total_cmp_time = 0;
-    double total_cmp_size = 0;
-    double total_decmp_time = 0;
-    cout << "Model_Name, Model_Path, Model_Size(MB), Para_Number, Compression_Ratio, Compression_Throughput, Decompression_Throughput" << endl;
-    for (int i = 0; i < model_info_list.size(); ++i) {
-	cout << "~~~~~~~~~~~~~~~~~~~~ " << i << " ~~~~~~~~~~~~~~~~~~~~" << endl;
-	ModelInfo info = model_info_list[i];    
-	int cnt = 5;
-        cmp_speed(info, cnt);
-	decmp_speed(info, cnt);
-        total_cmp_size += info.model_size;
-	total_cmp_time += info.duration_avg;
-	total_decmp_time += info.duration_avg_decmp;
-        std::cout << "Model Name: " << info.model_name << ", Model Path: " << info.model_path << ", Model Size: " << info.model_size/MB << " MB, Para Num: " << info.para_num << "CMP throughput:" << info.throughput << " MB/S." << "DECMP throughput:" << info.throughput_decmp << " MB/S." << std::endl;
-    }
-    double total_throughput = total_cmp_size/MB/total_cmp_time;
-    double total_throughput_decmp = total_cmp_size/MB/total_decmp_time;
-    cout <<  "\ntotal_throughput_cmp: " << total_throughput << " MB/S." << endl;
-    cout << "total_throughput_decmp: " << total_throughput_decmp << " MB/S." << endl;
     return 0;
 }
 

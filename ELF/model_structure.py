@@ -239,10 +239,29 @@ def adding_para_to_list(model_weights_flatten_list, weights_numpy):
 def saving_weights_fl_flatten(model_weights_flatten_list, fl_weights_file_path, dtype):
     model_weights_flatten = np.array(model_weights_flatten_list)
     para_len = len(model_weights_flatten)
+    #model_weights_flatten_file = fl_weights_file_path + dtype + str(para_len)+".pkl"
     model_weights_flatten_file = fl_weights_file_path + dtype + str(para_len)+".bin"
     if not os.path.exists(model_weights_flatten_file):
         #print("model weights sealing:", model_weights_flatten_file)
-        seal_pickle(model_weights_flatten_file, model_weights_flatten)
+        #seal_pickle(model_weights_flatten_file, model_weights_flatten)
+        
+        # so there using tofile to save list array to binary;
+        # Write to binary file
+        with open(model_weights_flatten_file, 'wb') as f:
+            model_weights_flatten.tofile(f)
+
+    '''
+    model_weights_flatten_file_c = fl_weights_file_path + dtype + str(para_len)+".bin"
+    if not os.path.exists(model_weights_flatten_file_c):
+        #print("model weights sealing:", model_weights_flatten_file)
+        # update: if save with pickle, it cannot be opened by C++;
+        #seal_pickle(model_weights_flatten_file, model_weights_flatten)
+
+        # so there using tofile to save list array to binary;
+        # Write to binary file
+        with open(model_weights_flatten_file_c, 'wb') as f:
+            model_weights_flatten.tofile(f)
+    '''
     #print("model_weights_flatten.shape:", model_weights_flatten.shape, para_len)
     return model_weights_flatten_file
 

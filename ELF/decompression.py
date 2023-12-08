@@ -13,8 +13,7 @@ import sys
 sys.path.append("..")
 from Utils.utils import *
 from Utils.config import *
-
-
+import subprocess
 
 def exponent_decompression(model_name, model_decmp_folder, model_decmp_path):
     #print("\n", model_name," model_recovery_from_exponential...")
@@ -32,6 +31,33 @@ def exponent_decompression(model_name, model_decmp_folder, model_decmp_path):
     for model_item in os.listdir(model_cmp_folder):
         model_item_path = os.path.join(model_cmp_folder, model_item)
         if model_item == "exponential_dedup":
+
+            # for c++ version
+            if model_name == "albert-base-v2":
+                para_name = 11685122
+            elif model_name == "sentence-transformers_all-MiniLM-L6-v2":
+                para_name = 22713216
+            else:
+                # bug to be fixed.
+                sys.exit()
+            elf_pthread = ["./elf_pthread", "-d", "-i", model_item_path+"/", "-p", "f32", "-n", str(para_name)]
+            #print("elf_pthread:", elf_pthread)
+            
+            try:
+                result = subprocess.run(elf_pthread, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                print("ELF:", result.stdout, end="")
+            except subprocess.CalledProcessError as e:
+                print("Error occurred:", e.stderr)
+                
+            #print("model_cmp_folder:", model_cmp_folder) 
+            model_weights_flatten_f32_file = model_item_path+"/decmp.bin"
+            model_weights_flatten_f32 = np.fromfile(model_weights_flatten_f32_file, dtype=np.float32)
+            os.remove(model_weights_flatten_f32_file)
+            model_weights_flatten_f64 = []
+            model_weights_flatten_f16 = []
+
+            # for python version
+            '''
             for model_float_weights_folder in os.listdir(model_item_path):
                 model_float_weights_folder_path = os.path.join(model_item_path, model_float_weights_folder)
                 for model_float_weights_exponential_file in os.listdir(model_float_weights_folder_path):
@@ -57,6 +83,8 @@ def exponent_decompression(model_name, model_decmp_folder, model_decmp_path):
                     print("Error folder in model_recovery_from_exponential for fxx folder.")
                     sys.exit()
                 #print(model_float_weights_folder_path)
+            '''
+
         elif model_item == "model_structure.pkl":
             model_structure = unseal_pickle(model_item_path)
     #print("len model_structure:", len(model_structure))

@@ -53,8 +53,10 @@ def distance_reference(model_weights_path_list):
             sys.exit()
 
         # Load the binary file
-        #model_weights = np.fromfile(model_weights_file, dtype=weights_dtype_np)
-        model_weights = unseal_pickle(model_weights_file)
+        # but this method only works for size smaller than 5G.
+        model_weights = np.fromfile(model_weights_file, dtype=weights_dtype_np)
+        
+        #model_weights = unseal_pickle(model_weights_file)
 
         # currently using 5 bits as the encoding bits to represent the distance length
         distinct_list = list()

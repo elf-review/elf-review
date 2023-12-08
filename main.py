@@ -23,8 +23,6 @@ from Evaluation.evaluation import *
 
 
 def main():
-    #print("\n~~~~~ Elves Starts ~~~~~")
-    #print("\n~~~~~ Folder Making ~~~~~")
     folder_making()
     print("\n~~~~~~~~~~~~~~~~~~~~ Model Downloading ~~~~~~~~~~~~~~~~~~~~")
     model_downloading(model_name_list)
@@ -35,10 +33,6 @@ def main():
     save_model_structure_and_flatten_weights(model_name_list)
     print("\n~~~~~ 2. Distance Encoding (DE) + Exponent-Less Floating (ELF) ~~~~~")
     ELVES(model_elves_compression)
-    #print("\n~~~~~~~~~~~~~~~~~~~~ Evaluation Reproducing ~~~~~~~~~~~~~~~~~~~~")
-    #evaluation(model_name_list)
-    #print("\n~~~~~ Compression Summary ~~~~~")
-    #compression_summary(model_name_list)
 
 
 def compression_summary(model_name_list):
@@ -91,7 +85,7 @@ def ELVES(model_elves_compression):
         distance_reference([model_weights_file]) 
         print("~~~ Exponent-Less Floating (ELF) ~~~")
         exponential_dedup([model_weights_file])
-    
+
     print("\n~~~~~ 3. zstd Lossless Compressing ~~~~~")
     cnt = 0
     model_decompression_dict = dict()
@@ -122,17 +116,18 @@ def ELVES(model_elves_compression):
             delete_folder(elf_folder)
         elif model_size_elf == min(model_size_weights, model_size_de, model_size_elf):
             model_compressed_weights_folder = elf_folder
-            delete_folder(weights_folder)
+            #delete_folder(weights_folder)
             delete_folder(de_folder)
         else:
             print("model size calculating error.")
             sys.exit()
         
-        source_folder = model_elves_compression+model_name+"/"
+        source_folder = model_elves_compression+model_name+"/exponential_dedup/"
         output_file = model_elves_compression+model_name+"/pytorch_model.tar"
         compress_folder(source_folder, output_file)
         model_decompression_dict[model_name] = model_compressed_weights_folder
-        
+    #print("model_decompression_dict:", model_decompression_dict)
+
     print("\n~~~~~~~~~~ ELVES Decompressing ~~~~~~~~~~")
     cnt = 0
     for model_name in model_name_list:
@@ -258,6 +253,7 @@ def get_weigths_path_list(model_cmp_structure_weights_folder):
                 cnt = 0
                 fl_weights_flg = 1
                 for model_weights_file in os.listdir(model_weights_folder):
+                    #if model_weights_file[-4:] == ".pkl":
                     model_weights_file_path = os.path.join(model_weights_folder, model_weights_file)
                     model_weights_file_list.append(model_weights_file_path)
                     cnt += 1
@@ -278,7 +274,7 @@ def folder_making():
 
 
 if __name__=='__main__':
-    total_start = time.time()
+    #total_start = time.time()
     main()
-    total_end = time.time()
-    print("\nTotal running time:", round((total_end - total_start)/60,2), "mins")
+    #total_end = time.time()
+    #print("\nTotal running time:", round((total_end - total_start)/60,2), "mins")

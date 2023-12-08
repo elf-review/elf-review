@@ -1,6 +1,8 @@
 ## ELVES Compression Reproducing
 ```
 pip3 install -r requirements.txt
+./config
+make
 ```
 ```
 python3 main.py
