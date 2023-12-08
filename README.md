@@ -23,7 +23,7 @@ python3 evaluation.py
 g++ -O3 elf_pthread.cpp -o elf_pthread -std=c++17 -pthread
 ```
 ```
-./pthread
+./elf_pthread
 ```
 
 ## ELVES Fuzz Testing
