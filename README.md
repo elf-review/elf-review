@@ -20,10 +20,7 @@ python3 evaluation.py
 ## ELF Performance
 
 ```
-g++ -O3 elf_pthread.cpp -o elf_pthread -std=c++17 -pthread
-```
-```
-./elf_pthread
+./elf_pthread -i original_weights_path.bin -p weight_type -n para_num
 ```
 
 ## ELVES Fuzz Testing
