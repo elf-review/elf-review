@@ -20,7 +20,7 @@ python3 evaluation.py
 ## ELF Performance
 
 ```
-./elf_pthread -i original_weights_path.bin -p weight_type -n para_num
+./elf_pthread -i original_weights_path.bin -p weight_type -n para_num -c (-c for compression, -d for decompression)
 ```
 
 ## ELVES Fuzz Testing
